@@ -3,11 +3,12 @@ import * as yup from 'yup'
 import { categoriesData, customersData, ecommerceProductsData, inventoryData, invoicesData, ordersData, sellersData } from '@/assets/data/products'
 import { appsData, notificationsData } from '@/assets/data/topbar'
 
-import { dataTableRecords, pricingData, projectsData, timelineData, transactionsData } from '@/assets/data/other'
+import { vacanciesData, blogPostsData, dataTableRecords, pricingData, projectsData, timelineData, transactionsData } from '@/assets/data/other'
 import { emailsData, socialGroupsData, socialUsersData, teamMembers } from '@/assets/data/social'
 import { todoData } from '@/assets/data/task'
 import type {
   AppType,
+  BlogPost,
   CategoryType,
   CommentType,
   CustomerType,
@@ -27,10 +28,11 @@ import type {
   TimelineType,
   TodoType,
   TransactionType,
+  VacancyType,
 } from '@/types/data'
 import { sleep } from '@/utils/promise'
 
-const getUserForAllComments = (commentsData: CommentType[]): CommentType[] => {
+export const getUserForAllComments = (commentsData: CommentType[]): CommentType[] => {
   return commentsData.map((comment) => {
     const socialUser = socialUsersData.find((user) => user.id === comment.socialUserId)
     if (comment.children) {
@@ -79,6 +81,26 @@ export const getAllPricingPlans = async (): Promise<PricingType[]> => {
 export const getAllProjects = async (): Promise<ProjectType[]> => {
   await sleep()
   return projectsData
+}
+
+export const getAllPosts = async (): Promise<BlogPost[]> => {
+  // Implementação da API
+  await sleep()
+  return blogPostsData
+}
+
+export const getAllVacancies = async (): Promise<VacancyType[]> => {
+  // Implementação da API
+  await sleep()
+  return vacanciesData
+}
+
+export const getVacancyById = async (id: VacancyType['id']): Promise<VacancyType | void> => {
+  const vacancy = vacanciesData.find((vacancy) => vacancy.id === id)
+  if (vacancy) {
+    await sleep()
+    return vacancy
+  }
 }
 
 export const getInvoiceById = async (id: InvoiceType['id']): Promise<InvoiceType | void> => {
