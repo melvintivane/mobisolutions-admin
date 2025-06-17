@@ -1,151 +1,298 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
+import { useState, useRef } from 'react';
 import { Button, Col, Form, Row } from "react-bootstrap";
 import { useNavigate } from "react-router-dom";
 import PageMetaData from "@/components/PageTitle";
 import ComponentContainerCard from "@/components/ComponentContainerCard";
 import { useMutation } from "react-query";
 import { createBlog } from "@/services/blogService";
-import { useState } from "react";
+import axios from 'axios';
+import { API_ENDPOINTS } from '@/config/api';
+import { toast } from 'react-toastify';
 
 const BlogPostCreate = () => {
   const navigate = useNavigate();
+  const authorImgInputRef = useRef<HTMLInputElement>(null);
+  const thumbInputRef = useRef<HTMLInputElement>(null);
+  
   const [formData, setFormData] = useState({
-    title: "",
-    description: "",
-    companyId: "",
-    type: "FULL_TIME",
-    status: "ACTIVE",
-    location: "",
-    cityId: 1004,
-    yearsOfExperience: 0,
-    careerLevel: "JUNIOR",
-    educationRequired: "",
-    degreeRequired: "",
-    genderPreference: "UNSPECIFIED",
-    minSalary: 0,
-    maxSalary: 0,
-    applicationDeadline: "",
-    requiredSkills: "",
-    requiredSkillIds: [602],
+    blogTitle: "",
+    mainText: "",
+    quoteText: "",
+    authorProfileImg: "",
+    thumb: "",
+    authorName: "",
+    authorResume: "",
+    status: "draft" as const,
+    date: new Date().toISOString(),
+    btnText: "Continuar Lendo",
+    btnIcon: "fa-solid fa-arrow-right",
   });
+
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [isUploading, setIsUploading] = useState(false);
+  const [fieldBeingUploaded, setFieldBeingUploaded] = useState<"authorProfileImg" | "thumb" | null>(null);
 
   const mutation = useMutation(createBlog, {
     onSuccess: () => {
-      navigate("/vacancies");
+      navigate("/blog");
     },
     onError: (error: any) => {
-      console.error("Error creating vacancy:", error);
-      // Adicione tratamento de erro aqui (ex: toast notification)
+      console.error("Error creating blog post:", error);
+      alert("Error creating blog post. Please try again.");
     },
   });
 
   const handleChange = (
-    e: React.ChangeEvent<
-      HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
-    >
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
   ) => {
     const { name, value } = e.target;
-    setFormData((prev: any) => ({
+    setFormData((prev) => ({
       ...prev,
       [name]: value,
     }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleFileUpload = async (file: File, fieldName: 'authorProfileImg' | 'thumb') => {
+    try {
+      setIsUploading(true);
+      setFieldBeingUploaded(fieldName);
+      setUploadProgress(0);
+      
+      const formData = new FormData();
+      formData.append('image', file);
+
+      const response = await fetch(`${API_ENDPOINTS.UPLOAD_IMAGE}`, {
+        method: 'POST',
+        body: formData,
+        headers: {
+          'Accept': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to upload image');
+      }
+
+      const data = await response.json();
+
+      setFormData(prev => ({
+        ...prev,
+        [fieldName]: data.imageUrl
+      }));
+
+      return data.imageUrl;
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      toast.error('Error uploading image. Please try again.');
+      throw error;
+    } finally {
+      setIsUploading(false);
+      setFieldBeingUploaded(null);
+    }
+  };
+
+  const handleImageChange = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+    fieldName: 'authorProfileImg' | 'thumb'
+  ) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      
+      // Check file size (5MB limit)
+      if (file.size > 5 * 1024 * 1024) {
+        alert('Image size must be less than 5MB');
+        return;
+      }
+
+      try {
+        const imageUrl = await handleFileUpload(file, fieldName);
+        setFormData(prev => ({
+          ...prev,
+          [fieldName]: imageUrl
+        }));
+      } catch (error) {
+        console.error('Failed to upload image:', error);
+      }
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validate required fields
+    if (!formData.authorProfileImg) {
+      alert('Please upload author profile image');
+      return;
+    }
 
-    // Transforma os dados para corresponder à API
-    const vacancyData = {
-      ...formData,
-      // Mapeia os campos que têm nomes diferentes
-      degreeRequired: formData.educationRequired,
-      // Converte valores numéricos
-      yearsOfExperience: Number(formData.yearsOfExperience),
-      minSalary: Number(formData.minSalary),
-      maxSalary: Number(formData.maxSalary),
-      // Remove campos não usados na API
-      educationRequired: "",
-      requiredSkills: "",
-      location: "",
-      requiredSkillIds: formData.requiredSkills 
-      ? formData.requiredSkills.split(",").map(skill => parseInt(skill.trim()))
-      : [602], // Fallback para valor padrão
-    };
+    if (!formData.blogTitle || !formData.mainText || !formData.authorName || !formData.authorResume) {
+      alert('Please fill all required fields');
+      return;
+    }
 
-    mutation.mutate(vacancyData);
+    try {
+      await mutation.mutateAsync(formData);
+    } catch (error) {
+      console.error('Error submitting form:', error);
+    }
   };
 
   return (
     <>
-      <PageMetaData title="Create Vacancy" />
+      <PageMetaData title="Create Blog Post" />
 
       <Row>
         <Col>
           <ComponentContainerCard
-            id="vacancy-create-form"
-            title="Create New Job Vacancy"
-            description="Fill in the form below to post a new job opening"
+            id="blog-create-form"
+            title="Create New Blog Post"
+            description="Fill in the form below to create a new blog post"
           >
             <Form onSubmit={handleSubmit}>
-              {/* Basic Information */}
+              {/* Author Information */}
               <div className="mb-4">
-                <h5 className="mb-3">Basic Information</h5>
-
+                <h5 className="mb-3">Author Information</h5>
                 <Row className="mb-3">
                   <Col md={6}>
-                    <Form.Group controlId="title">
-                      <Form.Label>Job Title *</Form.Label>
+                    <Form.Group controlId="authorName">
+                      <Form.Label>Author Name *</Form.Label>
                       <Form.Control
                         type="text"
-                        name="title"
-                        placeholder="e.g. Frontend Developer"
-                        value={formData.title}
+                        name="authorName"
+                        value={formData.authorName}
                         onChange={handleChange}
                         required
+                        disabled={isUploading}
                       />
                     </Form.Group>
                   </Col>
                   <Col md={6}>
-                    <Form.Group controlId="companyId">
-                      <Form.Label>Company *</Form.Label>
-                      <Form.Select
-                        name="companyId"
-                        value={formData.companyId}
+                    <Form.Group controlId="authorResume">
+                      <Form.Label>Author Resume *</Form.Label>
+                      <Form.Control
+                        type="text"
+                        name="authorResume"
+                        value={formData.authorResume}
                         onChange={handleChange}
                         required
-                      >
-                        <option value="">Select company</option>
-                        {/* Você precisará buscar as empresas da API */}
-                        <option value="0cdf58d1-a700-46bc-9d87-b6a2dbc40678">
-                          EP Management & Consultancy Services
-                        </option>
-                        <option value="ac19d71e-921f-46b1-88dc-7ca2a842e40b">
-                          Krei Tech Industries
-                        </option>
-                      </Form.Select>
+                        disabled={isUploading}
+                      />
                     </Form.Group>
                   </Col>
                 </Row>
-
                 <Row className="mb-3">
                   <Col md={6}>
-                    <Form.Group controlId="jobType">
-                      <Form.Label>Job Type *</Form.Label>
-                      <Form.Select
-                        name="type"
-                        value={formData.type}
-                        onChange={handleChange}
+                    <Form.Group controlId="authorProfileImg">
+                      <Form.Label>Author Profile Image *</Form.Label>
+                      <Form.Control
+                        type="file"
+                        ref={authorImgInputRef}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleImageChange(e, 'authorProfileImg')}
+                        accept="image/*"
                         required
-                      >
-                        <option value="">Select job type</option>
-                        <option value="FULL_TIME">Full Time</option>
-                        <option value="PART_TIME">Part Time</option>
-                        <option value="FIXED_TERM">Contract</option>
-                        <option value="FREELANCE">Freelance</option>
-                        <option value="INTERNSHIP">Internship</option>
-                      </Form.Select>
+                        disabled={isUploading}
+                      />
+                      {isUploading && fieldBeingUploaded === 'authorProfileImg' && (
+                        <div className="mt-2">
+                          <progress value={uploadProgress} max="100" className="w-100" />
+                          <span>{uploadProgress}%</span>
+                        </div>
+                      )}
+                      {formData.authorProfileImg && (
+                        <div className="mt-2">
+                          <img 
+                            src={formData.authorProfileImg} 
+                            alt="Author preview" 
+                            style={{ maxWidth: '100px', maxHeight: '100px' }} 
+                          />
+                        </div>
+                      )}
                     </Form.Group>
                   </Col>
+                  <Col md={6}>
+                    <Form.Group controlId="thumb">
+                      <Form.Label>Post Thumbnail</Form.Label>
+                      <Form.Control
+                        type="file"
+                        ref={thumbInputRef}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleImageChange(e, 'thumb')}
+                        accept="image/*"
+                        disabled={isUploading}
+                      />
+                      {isUploading && fieldBeingUploaded === 'thumb' && (
+                        <div className="mt-2">
+                          <progress value={uploadProgress} max="100" className="w-100" />
+                          <span>{uploadProgress}%</span>
+                        </div>
+                      )}
+                      {formData.thumb && (
+                        <div className="mt-2">
+                          <img 
+                            src={formData.thumb} 
+                            alt="Thumbnail preview" 
+                            style={{ maxWidth: '100px', maxHeight: '100px' }} 
+                          />
+                        </div>
+                      )}
+                    </Form.Group>
+                  </Col>
+                </Row>
+              </div>
+
+              {/* Post Content */}
+              <div className="mb-4">
+                <h5 className="mb-3">Post Content</h5>
+                <Row className="mb-3">
+                  <Col md={12}>
+                    <Form.Group controlId="blogTitle">
+                      <Form.Label>Post Title *</Form.Label>
+                      <Form.Control
+                        type="text"
+                        name="blogTitle"
+                        value={formData.blogTitle}
+                        onChange={handleChange}
+                        required
+                        disabled={isUploading}
+                      />
+                    </Form.Group>
+                  </Col>
+                </Row>
+                <Row className="mb-3">
+                  <Col md={12}>
+                    <Form.Group controlId="mainText">
+                      <Form.Label>Main Content *</Form.Label>
+                      <Form.Control
+                        as="textarea"
+                        rows={5}
+                        name="mainText"
+                        value={formData.mainText}
+                        onChange={handleChange}
+                        required
+                        disabled={isUploading}
+                      />
+                    </Form.Group>
+                  </Col>
+                </Row>
+                <Row className="mb-3">
+                  <Col md={12}>
+                    <Form.Group controlId="quoteText">
+                      <Form.Label>Quote Text</Form.Label>
+                      <Form.Control
+                        type="text"
+                        name="quoteText"
+                        value={formData.quoteText}
+                        onChange={handleChange}
+                        disabled={isUploading}
+                      />
+                    </Form.Group>
+                  </Col>
+                </Row>
+              </div>
+
+              {/* Post Settings */}
+              <div className="mb-4">
+                <h5 className="mb-3">Post Settings</h5>
+                <Row className="mb-3">
                   <Col md={6}>
                     <Form.Group controlId="status">
                       <Form.Label>Status *</Form.Label>
@@ -154,212 +301,48 @@ const BlogPostCreate = () => {
                         value={formData.status}
                         onChange={handleChange}
                         required
+                        disabled={isUploading}
                       >
-                        <option value="ACTIVE">Active</option>
-                        <option value="CLOSED">Closed</option>
-                        <option value="PENDING">Pending</option>
+                        <option value="draft">Draft</option>
+                        <option value="published">Published</option>
+                        <option value="archived">Archived</option>
                       </Form.Select>
                     </Form.Group>
                   </Col>
-                </Row>
-
-                <Row className="mb-3">
-                  <Form.Group controlId="location">
-                    <Form.Label>Location *</Form.Label>
-                    <Form.Control
-                      type="text"
-                      placeholder="e.g. Maputo, Alto Maé"
-                      name="cityId"
-                      value={formData.cityId}
-                      onChange={handleChange}
-                      required
-                    />
-                  </Form.Group>
-                  {/* <Col md={6}>
-                    <Form.Group controlId="remoteAllowed">
-                      <Form.Label>Remote Work</Form.Label>
-                      <Form.Check
-                        type="switch"
-                        id="remoteSwitch"
-                        label="Allow remote work"
-                      />
-                    </Form.Group>
-                  </Col> */}
-                </Row>
-              </div>
-
-              {/* Requirements */}
-              <div className="mb-4">
-                <h5 className="mb-3">Requirements</h5>
-
-                <Row className="mb-3">
                   <Col md={6}>
-                    <Form.Group controlId="yearsOfExperience">
-                      <Form.Label>Years of Experience *</Form.Label>
-                      <Form.Control
-                        type="number"
-                        min="0"
-                        name="yearsOfExperience"
-                        value={formData.yearsOfExperience}
-                        onChange={handleChange}
-                        placeholder="e.g. 3"
-                        required
-                      />
-                    </Form.Group>
-                  </Col>
-                  <Col md={6}>
-                    <Form.Group controlId="careerLevel">
-                      <Form.Label>Career Level *</Form.Label>
-                      <Form.Select
-                        name="careerLevel"
-                        value={formData.careerLevel}
-                        onChange={handleChange}
-                        required
-                      >
-                        <option value="TRAINEE">Trainee Level</option>
-                        <option value="JUNIOR">Junior Level</option>
-                        <option value="MID">Mid Level</option>
-                        <option value="SENIOR">Senior Level</option>
-                        <option value="HEAD">Head Level</option>
-                      </Form.Select>
-                    </Form.Group>
-                  </Col>
-                </Row>
-
-                <Row className="mb-3">
-                  <Col md={6}>
-                    <Form.Group controlId="degreeRequired">
-                      <Form.Label>Education Requirement *</Form.Label>
-                      <Form.Control
-                        type="text"
-                        placeholder="e.g. Bachelor's degree in Computer Science"
-                        name="educationRequired"
-                        value={formData.educationRequired}
-                        onChange={handleChange}
-                        required
-                      />
-                    </Form.Group>
-                  </Col>
-                  <Col md={6}>
-                    <Form.Group controlId="genderPreference">
-                      <Form.Label>Gender Preference</Form.Label>
-                      <Form.Select
-                        name="genderPreference"
-                        value={formData.genderPreference}
-                        onChange={handleChange}
-                      >
-                        <option value="UNSPECIFIED">No Preference</option>
-                        <option value="MALE">Male</option>
-                        <option value="FEMALE">Female</option>
-                      </Form.Select>
-                    </Form.Group>
-                  </Col>
-                </Row>
-              </div>
-
-              {/* Compensation */}
-              <div className="mb-4">
-                <h5 className="mb-3">Compensation</h5>
-
-                <Row className="mb-3">
-                  <Col md={6}>
-                    <Form.Group controlId="minSalary">
-                      <Form.Label>Minimum Salary *</Form.Label>
-                      <Form.Control
-                        type="number"
-                        min="0"
-                        placeholder="e.g. 50000"
-                        name="minSalary"
-                        value={formData.minSalary}
-                        onChange={handleChange}
-                        required
-                      />
-                    </Form.Group>
-                  </Col>
-                  <Col md={6}>
-                    <Form.Group controlId="maxSalary">
-                      <Form.Label>Maximum Salary *</Form.Label>
-                      <Form.Control
-                        type="number"
-                        min="0"
-                        placeholder="e.g. 80000"
-                        name="maxSalary"
-                        value={formData.maxSalary}
-                        onChange={handleChange}
-                        required
-                      />
-                    </Form.Group>
-                  </Col>
-                </Row>
-              </div>
-
-              {/* Dates */}
-              <div className="mb-4">
-                <h5 className="mb-3">Dates</h5>
-
-                <Row className="mb-3">
-                  <Col md={6}>
-                    <Form.Group controlId="applicationDeadline">
-                      <Form.Label>Application Deadline *</Form.Label>
+                    <Form.Group controlId="date">
+                      <Form.Label>Publish Date *</Form.Label>
                       <Form.Control
                         type="datetime-local"
-                        name="applicationDeadline"
-                        value={formData.applicationDeadline}
-                        onChange={handleChange}
+                        name="date"
+                        value={new Date(formData.date).toISOString().slice(0, 16)}
+                        onChange={(e) => {
+                          setFormData((prev) => ({
+                            ...prev,
+                            date: new Date(e.target.value).toISOString(),
+                          }));
+                        }}
                         required
+                        disabled={isUploading}
                       />
                     </Form.Group>
                   </Col>
                 </Row>
               </div>
-
-              {/* Description */}
-              <div className="mb-4">
-                <h5 className="mb-3">Job Description</h5>
-
-                <Form.Group controlId="description">
-                  <Form.Label>Description *</Form.Label>
-                  <Form.Control
-                    as="textarea"
-                    rows={5}
-                    placeholder="Enter detailed job description..."
-                    name="description"
-                    value={formData.description}
-                    onChange={handleChange}
-                    required
-                  />
-                </Form.Group>
-              </div>
-
-              {/* Skills */}
-              {/* <div className="mb-4">
-                <h5 className="mb-3">Required Skills</h5>
-
-                <Form.Group controlId="requiredSkills">
-                  <Form.Label>Skills (comma separated) *</Form.Label>
-                  <Form.Control
-                    type="text"
-                    placeholder="e.g. React, JavaScript, TypeScript"
-                    name="requiredSkills"
-                    value={formData.requiredSkills}
-                    onChange={handleChange}
-                    required
-                  />
-                </Form.Group>
-              </div> */}
 
               <div className="mt-4">
                 <Button
                   variant="primary"
                   type="submit"
-                  disabled={mutation.isLoading}
+                  disabled={mutation.isLoading || isUploading}
                   className="me-1"
                 >
-                  {mutation.isLoading ? "Creating..." : "Create"}
+                  {mutation.isLoading ? "Creating..." : "Create Post"}
                 </Button>
-                <Button
-                  variant="secondary"
-                  onClick={() => navigate("/vacancies")}
+                <Button 
+                  variant="secondary" 
+                  onClick={() => navigate("/blog")}
+                  disabled={isUploading}
                 >
                   Cancel
                 </Button>

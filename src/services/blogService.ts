@@ -2,27 +2,21 @@
 import { BlogPost, BlogPostApiResponse } from "../types/blog";
 import { API_ENDPOINTS } from "../config/api";
 
-
 export interface BlogCreateDto {
-  title: string;
-  description: string;
-  companyId: string;
-  type: string;
-  status: string;
-  cityId: number;
-  yearsOfExperience: number;
-  careerLevel: string;
-  educationRequired: string;
-  minSalary: number;
-  maxSalary: number;
-  applicationDeadline: string;
-  degreeRequired: string;
-  requiredSkillIds: number[];
+  blogTitle: string;
+  authorProfileImg?: string;
+  thumb?: string;
+  authorName: string;
+  authorResume: string;
+  date: string;
+  mainText: string;
+  quoteText: string;
+  status: "draft" | "published" | "archived";
 }
 
-
-export const createBlog = async ( blogData: BlogCreateDto ): Promise<BlogPost> => {
-
+export const createBlog = async (
+  blogData: BlogCreateDto
+): Promise<BlogPost> => {
   const response = await fetch(`${API_ENDPOINTS.BLOGS}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -36,19 +30,18 @@ export const createBlog = async ( blogData: BlogCreateDto ): Promise<BlogPost> =
   return response.json();
 };
 
-
-export const getAllBlogPosts = async (page: number = 0, limit: number = 10): Promise<BlogPostApiResponse> => {
-
+export const getAllBlogPosts = async (
+  page: number = 0,
+  limit: number = 10
+): Promise<BlogPostApiResponse> => {
   const response = await fetch(
-    `${API_ENDPOINTS.BLOGS}?page=${page}&limit=${limit}`,
+    `${API_ENDPOINTS.BLOGS}?page=${page}&limit=${limit}`
   );
 
   return response.json();
 };
 
-
 export const getVacancyById = async (blogId: string): Promise<BlogPost> => {
-
   const response = await fetch(`${API_ENDPOINTS.BLOGS}/${blogId}`);
 
   if (!response.ok) {
@@ -58,9 +51,13 @@ export const getVacancyById = async (blogId: string): Promise<BlogPost> => {
   return response.json();
 };
 
-
-export const updateVacancy = async ({ id, data }: { id: string; data: BlogPost;}): Promise<BlogPost> => {
-
+export const updateVacancy = async ({
+  id,
+  data,
+}: {
+  id: string;
+  data: BlogPost;
+}): Promise<BlogPost> => {
   const response = await fetch(`${API_ENDPOINTS.BLOGS}/${id}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
